@@ -159,8 +159,10 @@ if __name__ == "__main__":
     
     # Save to CSV
     df.to_csv('data/raw/uk_customers.csv', index=False)
-    df.to_csv('data/uk_customers.csv', index=False)
+    # df.to_csv('data/uk_customers.csv', index=False)
     
     print(f"Generated {len(df)} UK customer records")
     print(f"Churn rate: {df['churned'].mean():.2%}")
     print(f"Data saved to data/uk_customers.csv")
+
+    

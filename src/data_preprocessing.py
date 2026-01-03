@@ -77,7 +77,10 @@ class DataPreprocessor:
         # Tenure groups
         df['tenure_group'] = pd.cut(df['tenure_months'],
                                    bins=[0, 12, 36, 60, 120, 240],
-                                   labels=['<1yr', '1-3yr', '3-5yr', '5-10yr', '10+yr'])
+                                   labels=['lt_1yr', '1_3yr', '3_5yr', '5_10yr', '10plus_yr']
+                                #    labels=['<1yr', '1-3yr', '3-5yr', '5-10yr', '10+yr']
+
+                                   )
         
         return df
     
@@ -104,6 +107,9 @@ class DataPreprocessor:
                 dummies = pd.get_dummies(df[col], prefix=col)
                 df = pd.concat([df, dummies], axis=1)
                 df = df.drop(col, axis=1)
+
+        # Clean column names
+        df.columns = df.columns.str.replace(r'[<>[\],]', '_', regex=True)
         
         return df
     

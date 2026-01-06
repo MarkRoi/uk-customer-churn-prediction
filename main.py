@@ -28,12 +28,14 @@ def main():
     # Step 2: Preprocess data
     print("\n2. Preprocessing data...")
     preprocessor = DataPreprocessor()
-    X, y = preprocessor.preprocess(df)
+    X, y = preprocessor.preprocess(df, training=True)
     
     # Split data
     print("   Splitting data into train/validation/test sets...")
     data_splits = preprocessor.split_data(X, y, test_size=0.2, val_size=0.1)
     
+    preprocessor.feature_names = data_splits['feature_names']
+
     # Save preprocessor
     preprocessor.save_preprocessor('models/preprocessor.joblib')
     

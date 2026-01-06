@@ -87,52 +87,71 @@ def predict_churn(customer_data, model, preprocessor_dict):
     cols_to_drop = ['customer_id', 'products_held', 'churn_reason']
     df = df.drop(columns=[c for c in cols_to_drop if c in df.columns], errors='ignore')
     
-    # === 2. Create engineered features (same as in training) ===
+    # === 2. Feature engineering ===
     df['income_per_product'] = df['annual_income'] / (df['num_products'] + 1)
     df['engagement_score'] = df['app_usage_hours'] / (df['days_since_last_login'] + 1)
-    df['risk_score'] = (df['complaints_last_year'] * 0.3 +
-                       (850 - df['credit_score']) / 550 * 0.7)
-    df['total_monthly_value'] = df['avg_transaction_value'] * df['transaction_frequency'] / 30
-    
-    df['age_group'] = pd.cut(df['age'],
-                             bins=[0, 25, 35, 45, 55, 65, 100],
-                             labels=['18-25', '26-35', '36-45', '46-55', '56-65', '65+'])
-    df['tenure_group'] = pd.cut(df['tenure_months'],
-                                bins=[0, 12, 36, 60, 120, 240],
-                                labels=['lt_1yr', '1_3yr', '3_5yr', '5_10yr', '10plus_yr'])  # safer labels
-    
+    df['risk_score'] = (
+        df['complaints_last_year'] * 0.3 +
+        (850 - df['credit_score']) / 550 * 0.7
+    )
+    df['total_monthly_value'] = (
+        df['avg_transaction_value'] * df['transaction_frequency'] / 30
+    )
+
+    df['age_group'] = pd.cut(
+        df['age'],
+        bins=[0, 25, 35, 45, 55, 65, 100],
+        labels=['18-25', '26-35', '36-45', '46-55', '56-65', '65+']
+    )
+
+    df['tenure_group'] = pd.cut(
+        df['tenure_months'],
+        bins=[0, 12, 36, 60, 120, 240],
+        labels=['lt_1yr', '1_3yr', '3_5yr', '5_10yr', '10plus_yr']
+    )
+
     # === 3. Encode categorical variables ===
     # Gender
-    if 'gender' in df.columns and 'gender' in preprocessor_dict['label_encoders']:
+    if 'gender' in df.columns:
         le = preprocessor_dict['label_encoders']['gender']
         df['gender'] = le.transform(df['gender'])
-    
-    # Region one-hot
+
+    # Region
     if 'region' in df.columns:
         region_dummies = pd.get_dummies(df['region'], prefix='region')
         df = pd.concat([df, region_dummies], axis=1)
         df.drop('region', axis=1, inplace=True)
-    
-    # Age and tenure groups one-hot
+
+    # Age & tenure groups
     for col in ['age_group', 'tenure_group']:
         if col in df.columns:
             dummies = pd.get_dummies(df[col], prefix=col)
             df = pd.concat([df, dummies], axis=1)
             df.drop(col, axis=1, inplace=True)
-    
-    # Clean column names for XGBoost safety
+
+    # Clean column names
     df.columns = df.columns.str.replace(r'[<>[\],]', '_', regex=True)
-    
+
     # === 4. Scale numerical features ===
     scaler = preprocessor_dict['scaler']
     numeric_cols = df.select_dtypes(include=[np.number]).columns
     df[numeric_cols] = scaler.transform(df[numeric_cols])
-    
+
+    # === 🚨 4.5 ALIGN FEATURES WITH TRAINING (CRITICAL FIX) ===
+    trained_features = preprocessor_dict['feature_names']
+
+    for col in trained_features:
+        if col not in df.columns:
+            df[col] = 0
+
+    df = df[trained_features]
+
     # === 5. Predict ===
     churn_prob = model.predict_proba(df)[0, 1]
-    churn_pred = 1 if churn_prob > 0.5 else 0
-    
+    churn_pred = int(churn_prob > 0.5)
+
     return churn_pred, churn_prob
+
 
 def create_customer_input_form():
     """Create form for customer input"""
@@ -361,41 +380,30 @@ def display_prediction(model, preprocessor, df):
         st.markdown("#### 📋 Retention Recommendations")
         
         if churn_prob > 0.7:
-            st.markdown("""
-            <div class="highlight">
-            <strong>Immediate Action Required:</strong>
-            <ul>
-                <li>📞 Personal phone call from relationship manager</li>
-                <li>🎁 Exclusive retention offer (e.g., fee waiver for 6 months)</li>
-                <li>📱 Schedule in-person meeting at local branch</li>
-                <li>💳 Review product fit and offer upgrades</li>
-            </ul>
-            </div>
-            """, unsafe_allow_html=True)
+            st.error("""
+            **Immediate Action Required**
+            - 📞 Personal phone call from relationship manager  
+            - 🎁 Exclusive retention offer  
+            - 📱 Schedule in-person meeting  
+            - 💳 Review product fit
+            """)
         elif churn_prob > 0.3:
-            st.markdown("""
-            <div class="highlight">
-            <strong>Proactive Engagement:</strong>
-            <ul>
-                <li>✉️ Personalized email with relevant offers</li>
-                <li>📱 App notification with new feature highlights</li>
-                <li>🤝 Invitation to customer webinar</li>
-                <li>⭐ Loyalty points bonus offer</li>
-            </ul>
-            </div>
-            """, unsafe_allow_html=True)
+            st.warning("""
+            **Proactive Engagement**
+            - ✉️ Personalized email  
+            - 📱 App notification  
+            - 🤝 Customer webinar  
+            - ⭐ Loyalty points
+            """)
         else:
-            st.markdown("""
-            <div class="highlight">
-            <strong>Maintenance Strategy:</strong>
-            <ul>
-                <li>📧 Regular newsletter with useful content</li>
-                <li>🎯 Cross-sell complementary products</li>
-                <li>⭐ Continue excellent service delivery</li>
-                <li>📊 Monitor engagement metrics monthly</li>
-            </ul>
-            </div>
-            """, unsafe_allow_html=True)
+            st.success("""
+            **Maintenance Strategy**
+            - 📧 Regular newsletter  
+            - 🎯 Cross-sell products  
+            - ⭐ Continue excellent service  
+            - 📊 Monitor engagement
+            """)
+
 
 def display_insights(df):
     """Display customer insights"""
@@ -498,14 +506,16 @@ def display_strategies(df):
     
     potential_savings = total_clv_at_risk * (retention_rate_target / 100)
     
-    st.markdown(f"""
-    <div class="metric-card">
-    <h3>💰 Business Impact</h3>
-    <p>Total CLV at Risk: <strong>£{total_clv_at_risk:,.0f}</strong></p>
-    <p>Target Retention Improvement: <strong>{retention_rate_target}%</strong></p>
-    <p>Potential Annual Savings: <strong>£{potential_savings:,.0f}</strong></p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.info(
+    f"""
+    💰 **Business Impact**
+
+    - **Total CLV at Risk:** £{total_clv_at_risk:,.0f}
+    - **Target Retention Improvement:** {retention_rate_target}%
+    - **Potential Annual Savings:** £{potential_savings:,.0f}
+    """
+    )
+
     
     # Strategy recommendations
     st.markdown("### 📋 Segment-Specific Strategies")

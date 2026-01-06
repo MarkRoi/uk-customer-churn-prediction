@@ -9,9 +9,10 @@ class DataPreprocessor:
         self.scaler = StandardScaler()
         self.label_encoders = {}
         self.onehot_encoder = None
+        self.feature_names = None
         self.columns_to_drop = ['customer_id', 'products_held', 'churn_reason']
         
-    def preprocess(self, df):
+    def preprocess(self, df, training=True):
         """Main preprocessing pipeline"""
         
         # Create a copy
@@ -27,7 +28,8 @@ class DataPreprocessor:
         df_processed = self.create_features(df_processed)
         
         # Encode categorical variables
-        df_processed = self.encode_categorical(df_processed)
+        # df_processed = self.encode_categorical(df_processed)
+        df_processed = self.encode_categorical(df_processed, training=training)
         
         # Separate features and target
         if 'churned' in df_processed.columns:
@@ -36,7 +38,10 @@ class DataPreprocessor:
         else:
             X = df_processed
             y = None
-            
+
+        if not training:
+            X = self.align_features(X)
+          
         return X, y
     
     def handle_missing_values(self, df):
@@ -84,34 +89,73 @@ class DataPreprocessor:
         
         return df
     
-    def encode_categorical(self, df):
-        """Encode categorical variables"""
+    def align_features(self, df):
+        for col in self.feature_names:
+            if col not in df.columns:
+                df[col] = 0
+        return df[self.feature_names]
+
+    
+    # def encode_categorical(self, df):
+    #     """Encode categorical variables"""
         
-        # Label encode binary categorical
-        binary_cols = ['gender']
-        for col in binary_cols:
-            if col in df.columns:
+    #     # Label encode binary categorical
+    #     binary_cols = ['gender']
+    #     for col in binary_cols:
+    #         if col in df.columns:
+    #             le = LabelEncoder()
+    #             df[col] = le.fit_transform(df[col])
+    #             self.label_encoders[col] = le
+        
+    #     # One-hot encode region
+    #     if 'region' in df.columns:
+    #         region_dummies = pd.get_dummies(df['region'], prefix='region')
+    #         df = pd.concat([df, region_dummies], axis=1)
+    #         df = df.drop('region', axis=1)
+        
+    #     # One-hot encode age and tenure groups
+    #     for col in ['age_group', 'tenure_group']:
+    #         if col in df.columns:
+    #             dummies = pd.get_dummies(df[col], prefix=col)
+    #             df = pd.concat([df, dummies], axis=1)
+    #             df = df.drop(col, axis=1)
+
+    #     # Clean column names
+    #     df.columns = df.columns.str.replace(r'[<>[\],]', '_', regex=True)
+        
+    #     return df
+
+    def encode_categorical(self, df, training=True):
+        """Encode categorical variables safely"""
+
+        # Gender (LabelEncoder)
+        if 'gender' in df.columns:
+            if training:
                 le = LabelEncoder()
-                df[col] = le.fit_transform(df[col])
-                self.label_encoders[col] = le
-        
-        # One-hot encode region
+                df['gender'] = le.fit_transform(df['gender'])
+                self.label_encoders['gender'] = le
+            else:
+                le = self.label_encoders['gender']
+                df['gender'] = le.transform(df['gender'])
+
+        # Region (One-hot)
         if 'region' in df.columns:
             region_dummies = pd.get_dummies(df['region'], prefix='region')
             df = pd.concat([df, region_dummies], axis=1)
-            df = df.drop('region', axis=1)
-        
-        # One-hot encode age and tenure groups
+            df.drop('region', axis=1, inplace=True)
+
+        # Age & tenure groups
         for col in ['age_group', 'tenure_group']:
             if col in df.columns:
                 dummies = pd.get_dummies(df[col], prefix=col)
                 df = pd.concat([df, dummies], axis=1)
-                df = df.drop(col, axis=1)
+                df.drop(col, axis=1, inplace=True)
 
         # Clean column names
         df.columns = df.columns.str.replace(r'[<>[\],]', '_', regex=True)
-        
+
         return df
+
     
     def split_data(self, X, y, test_size=0.2, val_size=0.1, random_state=42):
         """Split data into train, validation, and test sets"""
@@ -146,18 +190,33 @@ class DataPreprocessor:
             'y_val': y_val,
             'y_test': y_test,
             'feature_names': X_train.columns.tolist()
+            
         }
     
+    # def save_preprocessor(self, path='models/preprocessor.joblib'):
+    #     """Save preprocessor objects"""
+    #     preprocessor_obj = {
+    #         'scaler': self.scaler,
+    #         'label_encoders': self.label_encoders
+    #     }
+    #     joblib.dump(preprocessor_obj, path)
+
     def save_preprocessor(self, path='models/preprocessor.joblib'):
-        """Save preprocessor objects"""
-        preprocessor_obj = {
+        joblib.dump({
             'scaler': self.scaler,
-            'label_encoders': self.label_encoders
-        }
-        joblib.dump(preprocessor_obj, path)
-    
+            'label_encoders': self.label_encoders,
+            'feature_names': self.feature_names
+        }, path)
+
     def load_preprocessor(self, path='models/preprocessor.joblib'):
-        """Load preprocessor objects"""
-        preprocessor_obj = joblib.load(path)
-        self.scaler = preprocessor_obj['scaler']
-        self.label_encoders = preprocessor_obj['label_encoders']
+        obj = joblib.load(path)
+        self.scaler = obj['scaler']
+        self.label_encoders = obj['label_encoders']
+        self.feature_names = obj['feature_names']
+
+
+    # def load_preprocessor(self, path='models/preprocessor.joblib'):
+    #     """Load preprocessor objects"""
+    #     preprocessor_obj = joblib.load(path)
+    #     self.scaler = preprocessor_obj['scaler']
+    #     self.label_encoders = preprocessor_obj['label_encoders']

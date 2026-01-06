@@ -11,6 +11,21 @@ A comprehensive machine learning solution for predicting customer churn in UK fi
 
 **Business Impact:** Predicts churn 30-60 days in advance, enabling proactive retention with potential savings of £2.1M annually per 10,000 customers.
 
+## 📸 UK Customer Churn Prediction Dashboard
+
+### 1. Business Overview
+![Business Overview](images/churn.png)
+*High-level overview of customer churn distribution and key business indicators used in the churn prediction model.*
+
+### 2. Customer Insights
+![Customer Insights & Analytics](images/churn2.png)
+*Exploratory analysis showing relationships between customer demographics, engagement metrics, and churn behavior.*
+
+### 3. Churn Prediction
+![Churn Prediction](images/churn3.png)
+*Model output visualizing churn risk predictions and probability scores across different customer segments.*
+
+
 🚀 Quick Start
 --------------
 

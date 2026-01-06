@@ -63,10 +63,19 @@ class ChurnPredictor:
         pos = np.sum(y_train == 1)
         return neg / pos if pos > 0 else 1
     
+
     def train_models(self, X_train, y_train, X_val=None, y_val=None):
-        """Train all models"""
+        """Train all models with error handling"""
         
         self.initialize_models()
+        
+        # Ensure feature names are XGBoost compatible
+        if hasattr(X_train, 'columns'):
+            X_train.columns = [str(col).replace('[', '').replace(']', '').replace('<', '') 
+                            for col in X_train.columns]
+            if X_val is not None and hasattr(X_val, 'columns'):
+                X_val.columns = [str(col).replace('[', '').replace(']', '').replace('<', '') 
+                                for col in X_val.columns]
         
         # Calculate class weight for XGBoost
         scale_pos_weight = self.calculate_scale_pos_weight(y_train)
@@ -75,31 +84,36 @@ class ChurnPredictor:
         results = {}
         
         for name, model in self.models.items():
-            print(f"Training {name}...")
-            model.fit(X_train, y_train)
-            
-            # Make predictions
-            if X_val is not None and y_val is not None:
-                y_pred = model.predict(X_val)
-                y_pred_proba = model.predict_proba(X_val)[:, 1]
+            try:
+                print(f"Training {name}...")
+                model.fit(X_train, y_train)
                 
-                # Calculate metrics
-                results[name] = {
-                    'accuracy': accuracy_score(y_val, y_pred),
-                    'precision': precision_score(y_val, y_pred),
-                    'recall': recall_score(y_val, y_pred),
-                    'f1': f1_score(y_val, y_pred),
-                    'roc_auc': roc_auc_score(y_val, y_pred_proba),
-                    'model': model
-                }
-                
-                print(f"  {name} - AUC: {results[name]['roc_auc']:.4f}, F1: {results[name]['f1']:.4f}")
+                # Make predictions
+                if X_val is not None and y_val is not None:
+                    y_pred = model.predict(X_val)
+                    y_pred_proba = model.predict_proba(X_val)[:, 1] if hasattr(model, 'predict_proba') else y_pred
+                    
+                    # Calculate metrics
+                    results[name] = {
+                        'accuracy': accuracy_score(y_val, y_pred),
+                        'precision': precision_score(y_val, y_pred, zero_division=0),
+                        'recall': recall_score(y_val, y_pred, zero_division=0),
+                        'f1': f1_score(y_val, y_pred, zero_division=0),
+                        'roc_auc': roc_auc_score(y_val, y_pred_proba) if len(np.unique(y_val)) > 1 else 0.5,
+                        'model': model
+                    }
+                    
+                    print(f"  {name} - AUC: {results[name]['roc_auc']:.4f}, F1: {results[name]['f1']:.4f}")
+            except Exception as e:
+                print(f"  ❌ Error training {name}: {str(e)}")
+                # Continue with other models
         
         return results
     
     def hyperparameter_tuning(self, X_train, y_train, model_name='xgboost'):
-        """Perform hyperparameter tuning for selected model"""
+        """Perform hyperparameter tuning for selected model - FIXED"""
         
+        # 🚨 FIX: Initialize model BEFORE using it
         if model_name == 'xgboost':
             param_grid = {
                 'n_estimators': [100, 200, 300],
@@ -142,6 +156,11 @@ class ChurnPredictor:
                 class_weight='balanced',
                 n_jobs=-1
             )
+        
+        else:
+            # 🚨 FIX: Handle case when model_name doesn't match
+            print(f"⚠️  Model {model_name} not supported for tuning, using XGBoost")
+            return self.hyperparameter_tuning(X_train, y_train, 'xgboost')
         
         # Randomized search
         random_search = RandomizedSearchCV(

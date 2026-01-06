@@ -138,15 +138,15 @@ def generate_business_insights(df, model, preprocessor, data_splits):
     # Calculate potential savings
     total_customers = len(df)
     churn_rate = df['churned'].mean()
-    avg_clv = df['estimated_clv'].mean()
+    # avg_clv = df['estimated_clv'].mean()
     
-    potential_savings = total_customers * churn_rate * avg_clv * 0.3  # Assume 30% retention
+    # potential_savings = total_customers * churn_rate * avg_clv * 0.3  # Assume 30% retention
     
     print(f"\n   Business Impact Analysis:")
     print(f"   Total customers: {total_customers:,}")
     print(f"   Current churn rate: {churn_rate:.2%}")
-    print(f"   Average CLV: £{avg_clv:,.0f}")
-    print(f"   Potential annual savings: £{potential_savings:,.0f}")
+    # print(f"   Average CLV: £{avg_clv:,.0f}")
+    # print(f"   Potential annual savings: £{potential_savings:,.0f}")
     
     # Regional analysis
     if 'region' in df.columns:
